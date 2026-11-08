@@ -55,6 +55,15 @@
   .doc .big{font-size:18px;font-weight:700;margin:6px 0}
   .doc .row{display:flex;justify-content:space-between;font-size:13px;margin-top:4px}
   .mask{background:#1c2622;color:#1c2622;border-radius:4px;padding:0 4px}
+  .quick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--brand-soft);color:#174f42;border:0;border-radius:16px;padding:12px 14px;margin:0 0 10px;font:inherit;min-height:56px;cursor:pointer}
+  .quick span:first-child{font-size:24px}.quick span:nth-child(2){flex:1}.quick small{font-size:13px;opacity:.85}
+  .linkfield{display:block;width:100%;text-align:left;font:inherit;cursor:pointer;position:relative}
+  .linkfield .chg{display:block;margin-top:6px;color:var(--brand);font-weight:600;font-size:14px}
+  .photo{display:block;width:100%;height:96px;margin:8px 0;border:1px solid #d9d4c7;border-radius:10px;background:linear-gradient(135deg,#f3efe3,#e6efe9);padding:10px 12px;text-align:left;cursor:zoom-in;transition:height .2s;position:relative;overflow:hidden}
+  .photo.big2{height:220px;cursor:zoom-out}
+  .ph-t{display:block;font-size:11px;font-weight:700;color:#4a5a54;letter-spacing:.5px;margin-bottom:8px}
+  .ph-l{display:block;height:6px;width:80%;background:#c9c3b3;border-radius:3px;margin:6px 0}.ph-l.s{width:55%}
+  .ph-m{position:absolute;right:10px;bottom:10px;background:#222;color:#222;font-size:11px;padding:2px 6px;border-radius:3px}
   .camera{position:absolute;inset:0;background:#111;color:#fff;display:flex;flex-direction:column;z-index:20}
   .camera .view{flex:1;display:grid;place-items:center;padding:24px}
   .camera .frame{width:100%;aspect-ratio:1.55;border:2px dashed #fff8;border-radius:16px;display:grid;place-items:center;text-align:center;padding:16px;color:#fffc}
@@ -104,7 +113,7 @@ let S = {
     {id:7, con:'Contribuciones (cuota 4)', ic:'🏛️', cat:'Hogar', per:'Yo', el:'casa', fecha:new Date(2026,10,30), avisos:[7,1], estado:'activo'},
     {id:8, con:'Pasaporte', ic:'🛂', cat:'Personas', per:'Yo', el:null, fecha:new Date(2026,10,1), avisos:[30,7,1], estado:'activo'},
   ],
-  pref:[30,7,1], nextId:9
+  pref:[30,7,1], ov:{}, nextId:9
 };
 let undoFn=null, snackTimer=null;
 function set(p){if(p.sheet){S.snack=null;undoFn=null;}Object.assign(S,p);render();}
@@ -120,7 +129,8 @@ function inicio(){
   const list=activos(); const venc=list.filter(v=>dias(v.fecha)<0); const prox=list.filter(v=>dias(v.fecha)>=0);
   const f=['Todos','Auto','Hogar','Personas','Compras','Sofía'];
   return `<header class="bar"><h1>Mis vencimientos</h1><button class="iconbtn" aria-label="Buscar">🔍</button></header>
-  <main><div class="chips">${f.map(x=>`<button class="chip ${S.filtro===x?'on':''}" onclick="set({filtro:'${x}'})">${x}</button>`).join('')}</div>
+  <main><button class="quick" onclick="set({screen:{t:'control',id:'toyota'}})"><span>👮</span><span><b>Documentos del auto</b><br><small>Para un control · sin conexión</small></span><span>›</span></button>
+  <div class="chips">${f.map(x=>`<button class="chip ${S.filtro===x?'on':''}" onclick="set({filtro:'${x}'})">${x}</button>`).join('')}</div>
   ${venc.length?`<div class="sec red">Vencidos sin renovar · ${venc.length}</div>${venc.map(card).join('')}`:''}
   <div class="sec">Próximos</div>${prox.map(card).join('')||'<p class="d">Nada pendiente con este filtro.</p>'}
   </main><button class="fab" onclick="set({sheet:'agregar'})" aria-label="Agregar">＋ Agregar</button>`;
@@ -153,7 +163,7 @@ function ajustes(){
   <div class="field"><label>Avisarme antes de cada vencimiento</label><div class="daychips" style="margin-top:6px">${[60,30,15,7,1].map(d=>`<button class="chip ${S.pref.includes(d)?'on':''}" onclick="togPref(${d})">${d} ${d===1?'día':'días'}</button>`).join('')}</div></div>
   <div class="field"><label>Hora del aviso</label><select><option>09:00</option><option>12:00</option><option>20:00</option></select></div>
   <div class="sec">Por tipo de documento</div>
-  ${['SOAP','Revisión técnica','Licencia de conducir','Garantía'].map(c=>`<button class="card" onclick="set({sheet:{t:'concepto',c:'${c}'}})"><span><div class="t">${c}</div><div class="d">${c==='SOAP'&&S.soap?S.soap.join(', ')+' días · personalizado':'Usa los avisos por defecto'}</div></span><span class="pill p-green">›</span></button>`).join('')}
+  ${['SOAP','Revisión técnica','Licencia de conducir','Garantía'].map(c=>`<button class="card" onclick="set({sheet:{t:'concepto',c:'${c}'}})"><span><div class="t">${c}</div><div class="d">${S.ov[c]?S.ov[c].join(', ')+' días · personalizado':'Usa los avisos por defecto'}</div></span><span class="pill p-green">›</span></button>`).join('')}
   <div class="sec">Privacidad y datos</div>
   <div class="toggle"><span>Ocultar datos sensibles en fotos</span><span>✅</span></div>
   <div class="toggle"><span>Bloqueo con huella</span><span>✅</span></div>
@@ -165,7 +175,7 @@ function ajustes(){
   </main>`;
 }
 function detalle(id){
-  const v=S.venc.find(x=>x.id===id); const [c,l]=urg(v); const av=v.con==='SOAP'&&S.soap?S.soap:v.avisos;
+  const v=S.venc.find(x=>x.id===id); const [c,l]=urg(v); const av=S.ov[v.con]||v.avisos; const auto=v.el&&S.elementos.find(e=>e.id===v.el&&e.cat==='Auto');
   return `<header class="bar"><button class="iconbtn" onclick="set({screen:null})" aria-label="Volver">←</button><h1>${v.con}</h1></header><main>
   <div class="doc"><div class="hd">${v.ic} ${v.cat.toUpperCase()}${v.el?' · '+elName(v.el).toUpperCase():''}</div><div class="big">${v.con}</div>
    <div class="row"><span>Titular</span><span>${v.per==='Yo'?'Juan Pérez':v.per+' Pérez'}</span></div>
@@ -173,26 +183,27 @@ function detalle(id){
    <div class="row"><span>Vence</span><b>${fmt(v.fecha)}</b></div>
    <div class="d" style="margin-top:8px">🔒 Datos sensibles ocultos automáticamente</div></div>
   <span class="pill ${c}" style="display:inline-block">${l}</span>
-  <div class="sec">Avisos</div><div class="field"><label>${v.con==='SOAP'&&S.soap?'Personalizado para SOAP':'Heredado de los avisos por defecto'}</label><div>${av.map(d=>d+(d===1?' día':' días')).join(' · ')} antes, a las 09:00</div></div>
+  <div class="sec">Avisos</div><button class="field linkfield" onclick="set({sheet:{t:'concepto',c:'${v.con}'}})"><label>${S.ov[v.con]?'Personalizado para '+v.con:'Heredado de los avisos por defecto'}</label><div>${av.map(d=>d+(d===1?' día':' días')).join(' · ')} antes, a las 09:00</div><span class="chg">Cambiar ›</span></button>
   <div class="sec">Historial</div><div class="field"><label>Periodo anterior</label><div>Vigente hasta ${fmt(new Date(v.fecha.getFullYear()-1,v.fecha.getMonth(),v.fecha.getDate()))} · con foto</div></div>
   <button class="btn" onclick="renovar(${v.id})">📷 Renovar con una foto</button>
   ${dias(v.fecha)<0?`<button class="btn sec2" onclick="posponer(${v.id})">Recordármelo en 7 días</button>`:''}
   <button class="btn ghost" onclick="archivar(${v.id})">Archivar: ya no aplica</button>
+  ${auto?`<button class="btn ghost" onclick="set({screen:{t:'control',id:'${v.el}',from:${v.id}}})">👮 Ver todos los documentos del auto</button>`:''}
   </main>`;
 }
 function elemento(id){
   const e=S.elementos.find(x=>x.id===id); const vs=S.venc.filter(v=>v.el===id&&v.estado==='activo').sort((a,b)=>a.fecha-b.fecha);
   return `<header class="bar"><button class="iconbtn" onclick="set({screen:null})" aria-label="Volver">←</button><h1>${e.nombre}</h1></header><main>
   <p class="d" style="margin:0 2px 10px">${e.det} · ${e.cat}</p>
-  ${e.cat==='Auto'?`<button class="btn" onclick="set({screen:{t:'control',id:'${id}'}})">👮 Mostrar documentos (control)</button>`:''}
+  ${e.cat==='Auto'?`<button class="btn" onclick="set({screen:{t:'control',id:'${id}',fromEl:true}})">👮 Mostrar documentos (control)</button>`:''}
   <div class="sec">Documentos</div>${vs.map(card).join('')}
   <button class="btn ghost" onclick="set({sheet:{t:'baja',id:'${id}'}})" style="color:var(--red)">Dar de baja (vendido / ya no lo tengo)</button></main>`;
 }
 function control(id){
   const e=S.elementos.find(x=>x.id===id); const vs=S.venc.filter(v=>v.el===id&&v.estado==='activo');
-  return `<header class="bar"><button class="iconbtn" onclick="set({screen:{t:'el',id:'${id}'}})" aria-label="Volver">←</button><h1>Documentos del auto</h1></header><main>
-  <div class="banner info">Funciona sin conexión. Desliza para ver cada documento.</div>
-  ${vs.concat([{con:'Licencia de conducir',ic:'🚘',fecha:new Date(2026,11,2),cat:'Personas',hd:'CONDUCTOR · YO'}]).map(v=>`<div class="doc"><div class="hd">${v.ic} ${v.hd||e.nombre.toUpperCase()+' · '+e.det.toUpperCase()}</div><div class="big">${v.con}</div><div class="row"><span>Vigente hasta</span><b>${fmt(v.fecha)}</b></div><div class="row"><span>Estado</span><span>${dias(v.fecha)<0?'❌ Vencido':'✅ Vigente'}</span></div></div>`).join('')}
+  return `<header class="bar"><button class="iconbtn" onclick="set({screen:S.screen.from?{t:'v',id:S.screen.from}:(S.screen.fromEl?{t:'el',id:'${id}'}:null)})" aria-label="Volver">←</button><h1>Documentos del auto</h1></header><main>
+  <div class="banner info">Funciona sin conexión. Toca una foto para verla en grande.</div>
+  ${vs.concat([{con:'Licencia de conducir',ic:'🚘',fecha:new Date(2026,11,2),cat:'Personas',hd:'CONDUCTOR · YO'}]).map(v=>`<div class="doc"><div class="hd">${v.ic} ${v.hd||e.nombre.toUpperCase()+' · '+e.det.toUpperCase()}</div><div class="big">${v.con}</div><button class="photo" onclick="this.classList.toggle('big2')" aria-label="Ver foto de ${v.con}"><span class="ph-t">${v.con.toUpperCase()}</span><span class="ph-l"></span><span class="ph-l s"></span><span class="ph-l"></span><span class="ph-m">PATENTE ▇▇▇▇</span></button><div class="row"><span>Vigente hasta</span><b>${fmt(v.fecha)}</b></div><div class="row"><span>Estado</span><span>${dias(v.fecha)<0?'❌ Vencido':'✅ Vigente'}</span></div></div>`).join('')}
   </main>`;
 }
 function revision(){
@@ -221,11 +232,11 @@ function sheet(){
   if(sh==='agregar') return `<div class="sheet-bg" onclick="if(event.target===this)set({sheet:null})"><div class="sheet"><h2>Agregar</h2>
     <button class="btn" onclick="set({sheet:null,camera:true})">📷 Sacar foto del documento o boleta</button>
     <button class="btn sec2" onclick="set({sheet:null,screen:{t:'manual'}})">✍️ Escribirlo a mano</button></div></div>`;
-  if(sh.t==='concepto'){const cur=S.soap||S.pref; return `<div class="sheet-bg" onclick="if(event.target===this)set({sheet:null})"><div class="sheet"><h2>Avisos para ${sh.c}</h2>
-    <p class="src">${sh.c==='SOAP'&&S.soap?'Personalizado':'Ahora usa los avisos por defecto'}</p>
-    <div class="daychips">${[60,30,15,7,1].map(d=>`<button class="chip ${cur.includes(d)?'on':''}" onclick="togSoap(${d})">${d} ${d===1?'día':'días'}</button>`).join('')}</div>
+  if(sh.t==='concepto'){const cur=S.ov[sh.c]||S.pref; const n=S.venc.filter(v=>v.con===sh.c&&v.estado==='activo').length; return `<div class="sheet-bg" onclick="if(event.target===this)set({sheet:null})"><div class="sheet"><h2>Avisos para ${sh.c}</h2>
+    <p class="src">${S.ov[sh.c]?'Personalizado':'Ahora usa los avisos por defecto'} · se aplica a ${n===1?'tu documento':'tus '+n+' documentos'} de este tipo</p>
+    <div class="daychips">${[60,30,15,7,1].map(d=>`<button class="chip ${cur.includes(d)?'on':''}" onclick="togOv('${sh.c}',${d})">${d} ${d===1?'día':'días'}</button>`).join('')}</div>
     <button class="btn" onclick="set({sheet:null});snack('Avisos de ${sh.c} guardados')">Guardar</button>
-    <button class="btn ghost" onclick="S.soap=null;set({sheet:null})">Restablecer valores por defecto</button></div></div>`;}
+    <button class="btn ghost" onclick="delete S.ov['${sh.c}'];set({sheet:null})">Restablecer valores por defecto</button></div></div>`;}
   if(sh.t==='baja'){const e=S.elementos.find(x=>x.id===sh.id); const vs=S.venc.filter(v=>v.el===sh.id&&v.estado==='activo');
     return `<div class="sheet-bg" onclick="if(event.target===this)set({sheet:null})"><div class="sheet"><h2>¿Dar de baja ${e.nombre}?</h2>
     <p class="d">Se archivarán estos documentos y dejarás de recibir sus avisos. Quedan en el historial y puedes reactivarlos.</p>
@@ -274,7 +285,7 @@ function darBaja(id){
 }
 function reactivar(id){const e=S.elementos.find(x=>x.id===id); e.activo=true; S.venc.filter(v=>v.el===id&&v.estado==='archivado').forEach(v=>v.estado='activo'); render(); snack(`${e.nombre} reactivado`);}
 function togPref(d){S.pref=S.pref.includes(d)?S.pref.filter(x=>x!==d):[...S.pref,d].sort((a,b)=>b-a);render();}
-function togSoap(d){const cur=S.soap||[...S.pref]; S.soap=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d].sort((a,b)=>b-a);render();}
+function togOv(c,d){const cur=S.ov[c]||[...S.pref]; S.ov[c]=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d].sort((a,b)=>b-a);render();}
 function doUndo(){if(undoFn)undoFn(); undoFn=null; S.snack=null; clearTimeout(snackTimer); render();}
 
 // ---------- Render ----------
